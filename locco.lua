@@ -37,13 +37,13 @@
 -- them into an HTML template.<br>
 -- Parameters:<br>
 -- _source_: The source file to process.<br>
--- _path_: Path of the source file.<br>
--- _filename_: The filename of the source file.<br>
+-- _doc\_file_: The full path of target document.<br>
+-- _depth_: The depth of the src file, use for css file path.<br>
 -- _jump\_to_: A HTML chunk with links to other documentation files.
-function generate_documentation(source, path, filename, jump_to)
+function generate_documentation(source, doc_file, depth, jump_to)
   local sections = parse(source)
-  local sections = highlight(sections)
-  generate_html(source, path, filename, sections, jump_to)
+  sections = highlight(sections)
+  generate_html(source, doc_file, depth, sections, jump_to)
 end
 
 -- Given a string of source code, parse out each comment and the code that
@@ -102,14 +102,18 @@ end
 -- and code snippets and an HTML file is written.<br>
 -- Parameters:<br>
 -- _source_: The source file.<br>
--- _path_: Path of the source file.<br>
--- _filename_: The filename of the source file.<br>
+-- _doc\_file_: The full path of target document.<br>
+-- _depth_: The depth of the src file, use for css file path.<br>
 -- _sections_: A table with the original sections and rendered as HTML.<br>
 -- _jump\_to_: A HTML chunk with links to other documentation files.
-function generate_html(source, path, filename, sections, jump_to)
-  f, err = io.open(path..'/'..'docs/'..filename:gsub('lua$', 'html'), 'wb')
-  if err then print(err) end
+function generate_html(source, doc_file, depth, sections, jump_to)
+  f, err = io.open(doc_file, 'wb')
+  if err then
+    print(err)
+    os.exit(1)
+  end
   local h = template.header:gsub('%%title%%', source)
+  h = h:gsub('%%csspath%%', depth > 0 and (string.rep('../', depth) or ''))
   h = h:gsub('%%jump%%', jump_to)
   f:write(h)
   for i=1, #sections do
@@ -126,7 +130,7 @@ end
 
 -- We need the script location to add the script's directory to the package
 -- path and to copy the style sheet from.
-script_path = arg[0]:match('(.+)/.+')
+script_path = io.popen("dirname $(readlink -f '" .. arg[0] .. "')", 'r'):read('*a'):gsub('[\r\n]+$', '')
 package.path = table.concat({
   script_path..'/?.lua',
   package.path
@@ -207,11 +211,11 @@ function highlight_lua(code)
           -- First highlight function names.
           s = s:gsub('function ([%w_:%.]+)', 'function <span class="nf">%1</span>')
           -- There might be a non-keyword at the beginning of the snippet.
-          sout = s:match('^(%A+)') or ''
+          sout = s:match('^([^%a_]+)') or ''
           -- Iterate through Lua items and try to wrap operators,
           -- keywords and built-in functions in span elements.
           -- If nothing was highlighted go to the next category.
-          for item, sep in s:gmatch('([%a_]+)(%A+)') do
+          for item, sep in s:gmatch('([%a_]+)([^%a_]+)') do
             local span, n = wrap_in_span(item, operators, 'o')
             if span == item then
               span, n = wrap_in_span(item, keywords, 'k')
@@ -232,7 +236,10 @@ function highlight_lua(code)
 
 -- Generate HTML links to other files in the documentation.
 local jump_to = ''
-if #arg > 1 then
+if #arg < 1 then
+  print("Usage: " .. arg[0] .. " src1[ src2]")
+  os.exit(1)
+elseif #arg > 1 then
   jump_to = template.jump_start
   for i=1, #arg do
     local link = arg[i]:gsub('lua$', 'html')
@@ -246,10 +253,19 @@ end
 
 -- Make sure the output directory exists, generate the HTML files for each
 -- source file, print what's happening and copy the style sheet.
-local path = ensure_directory(arg[1])
+local prefix = 'docs'
 for i=1, #arg do
-  local filename = arg[i]:match('.+/(.+)$') or arg[i]
-  generate_documentation(arg[i], path, filename, jump_to)
-  print(arg[i]..' --> '..path..'/docs/'..filename:gsub('lua$', 'html'))
+  local src = arg[i]
+  local depth = 0
+  src:gsub('/', function()
+    depth = depth + 1
+    return ''
+  end)
+  local doc_file = prefix .. '/' .. src
+  doc_file = doc_file:gsub('%.lua$', '.html', 1)
+  ensure_directory(doc_file)
+  generate_documentation(src, doc_file, depth, jump_to)
+  print('gen doc of ' .. src .. ' --> ' .. doc_file)
 end
-os.execute('cp '..script_path..'/locco.css '..path..'/docs')
+
+os.execute('cp ' .. script_path .. '/locco.css ' .. prefix .. '/')
