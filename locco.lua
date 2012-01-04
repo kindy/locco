@@ -1,4 +1,4 @@
-#!/usr/bin/lua
+#!/usr/bin/env lua
 -- __Locco__ is a Lua port of [Docco](http://jashkenas.github.com/docco/),
 -- the quick-and-dirty, hundred-line-long, literate-programming-style
 -- documentation generator. It produces HTML that displays your comments
@@ -152,6 +152,7 @@ end
 -- Parameter:<br>
 -- _s_: String to escape.<br>
 function escape(s)
+  s = s:gsub('&', '&amp;')
   s = s:gsub('<', '&lt;')
   s = s:gsub('>', '&gt;')
   s = s:gsub('%%', '&#37;')

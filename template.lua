@@ -45,7 +45,7 @@ jump_end = [[
 ]]
 
 table_entry = [[
-<tr id="section-%index%">
+<tr class="code-section" id="section-%index%">
 <td class="docs">
   <div class="pilwrap">
     <a class="pilcrow" href="#section-%index%">&#182;</a>
